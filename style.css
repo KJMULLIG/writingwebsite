@@ -1,0 +1,64 @@
+body {
+    margin-left: 100px;
+    margin-right: 100px;
+    font-family: serif;
+    background-color: #1a1a1a;
+    color: #e0e0e0;
+}
+
+pre {
+    font-family: serif;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    text-align: justify;
+    color: #e0e0e0;
+}
+
+a {
+    color: #66b3ff;
+}
+
+a:visited {
+    color: #9d7fff;
+}
+
+a:hover {
+    color: #99ccff;
+}
+
+input[type="text"],
+input[type="password"],
+textarea {
+    background-color: #2a2a2a;
+    color: #e0e0e0;
+    border: 1px solid #444;
+    padding: 5px;
+}
+
+input[type="submit"],
+button {
+    background-color: #3a3a3a;
+    color: #e0e0e0;
+    border: 1px solid #555;
+    padding: 8px 15px;
+    cursor: pointer;
+    min-width: 100px;
+}
+
+input[type="submit"]:hover,
+button:hover {
+    background-color: #4a4a4a;
+}
+
+table {
+    background-color: #2a2a2a;
+    color: #e0e0e0;
+}
+
+table th {
+    background-color: #3a3a3a;
+}
+
+table td {
+    border-color: #444;
+}

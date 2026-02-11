@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Creative Writing</title>
+    
+    <link rel="stylesheet" href="style.css">
+    <script src="nav.js"></script>
+</head>
+
+<body>
+
+    <div id="navigation"></div>
+    <script>insertNavigation('archive');</script>
+
+    <h2>Completed Stories</h2>
+    <div id="storyList"></div>
+
+    <hr>
+
+    <div id="storyContent"></div>
+
+    <script>
+        let allStories = [];
+        let currentStory = null;
+
+        // Load the list of stories when page loads
+        window.onload = function() {
+            loadStoryList();
+        };
+
+        function loadStoryList() {
+            fetch('/archive/stories')
+                .then(response => response.json())
+                .then(data => {
+                    allStories = data.files;
+                    const storyList = document.getElementById('storyList');
+                    storyList.innerHTML = '';
+
+                    if (allStories.length === 0) {
+                        storyList.innerHTML = '<p>There are no completed stories.</p>';
+                        return;
+                    }
+
+                    allStories.forEach(story => {
+                        const link = document.createElement('a');
+                        link.href = '#';
+                        // Remove .txt extension for display
+                        const displayName = story.endsWith('.txt') ? story.slice(0, -4) : story;
+                        link.textContent = displayName;
+                        link.onclick = function(e) {
+                            e.preventDefault();
+                            loadStory(story);
+                        };
+
+                        storyList.appendChild(link);
+                        storyList.appendChild(document.createElement('br'));
+                    });
+                })
+                .catch(error => {
+                    console.error('Error loading stories:', error);
+                    document.getElementById('storyList').textContent = 'Error loading stories!';
+                });
+        }
+
+        function loadStory(filename) {
+            currentStory = filename;
+            
+            fetch('/archive/story/' + encodeURIComponent(filename))
+                .then(response => response.text())
+                .then(text => {
+                    const content = document.getElementById('storyContent');
+                    
+                    // Remove .txt extension for display
+                    const displayName = filename.endsWith('.txt') ? filename.slice(0, -4) : filename;
+                    
+                    // Replace single newlines with double br tags for paragraph spacing
+                    const formattedText = text.replace(/\n/g, '<br><br>');
+                    
+                    content.innerHTML = '<h3>' + displayName + '</h3><pre>' + formattedText + '</pre>';
+                })
+                .catch(error => {
+                    console.error('Error loading story:', error);
+                    document.getElementById('storyContent').textContent = 'Error loading story!';
+                });
+        }
+    </script>
+
+</body>
+</html>

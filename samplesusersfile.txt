@@ -1,0 +1,29 @@
+/admin.html is used to access the admin panel.
+
+Manually create initial turnOrder and set currentTurnIndex to 0. 
+Stylize all usernames as lowercase and singlewords. 
+As passwords are stored in plain text, inform people to not use passwords that they would use elsewhere.
+
+{
+  "users": [
+    {
+      "username": "admin",
+      "password": "admin123"
+    },
+    {
+      "username": "john",
+      "password": "password1"
+    },
+    {
+      "username": "sarah",
+      "password": "password2"
+    }
+  ],
+  "turnOrder": [
+    "sarah",
+    "john",
+    "admin"
+  ],
+  "currentTurnIndex": 0,
+  "storyComplete": false
+}

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+    
+<head>
+    <title>Creative Writing</title>
+    
+    <link rel="stylesheet" href="style.css">
+    <script src="nav.js"></script>
+</head>
+
+<body>
+
+    <div id="navigation"></div>
+    <script>insertNavigation('submit');</script>
+
+    <div id="turnInfo"></div>
+
+    <form id="chapterForm">
+        <label>Username:</label><br>
+        <input type="text" id="username" name="username" required><br><br>
+        
+        <label>Password:</label><br>
+        <input type="password" id="password" name="password" required><br><br>
+        
+        <label>Chapter Title:</label><br>
+        <input type="text" id="chapterTitle" name="chapterTitle" required><br><br>
+        
+        <label>Chapter Text:</label><br>
+        <textarea rows="8" cols="75" id="chapterText" name="chapterText" required></textarea>
+        <br><br>
+        
+        <p>Is this the conclusion to the story?
+        <input type="checkbox" id="isConclusion" name="isConclusion">
+        <label for="isConclusion"></label></p>
+        <br><br>
+        
+        <input type="submit" value="Submit">
+    </form>
+
+    <br>
+    
+    <div id="message"></div>
+
+    <script>
+        window.onload = function() {
+            loadTurnInfo();
+        };
+
+        function loadTurnInfo() {
+            fetch('/admin/turn-order')
+            .then(response => response.json())
+            .then(data => {
+                const turnInfo = document.getElementById('turnInfo');
+                if (data.storyComplete) {
+                    turnInfo.innerHTML = '<p>The story has been completed. No more chapters can be submitted until the admin reopens submissions.</strong></p><hr>';
+                    document.getElementById('chapterForm').style.display = 'none';
+                } else if (data.turnOrder.length > 0) {
+                    turnInfo.innerHTML = '<p><strong>Current turn:</strong> ' + data.turnOrder[data.currentTurnIndex] + '</p><hr>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading turn info:', error);
+            });
+        }
+
+        document.getElementById('chapterForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            var username = document.getElementById('username').value;
+            var password = document.getElementById('password').value;
+            var title = document.getElementById('chapterTitle').value;
+            var text = document.getElementById('chapterText').value;
+            var isConclusion = document.getElementById('isConclusion').checked;
+            
+            // Format the text: remove extra line breaks and indentation
+            // Split into lines, trim each line to remove indentation, filter out empty lines
+            var lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+            // Join with line breaks that have a tab indent after them
+            text = lines.join('\n\t');
+            // Add tab to the beginning of the text (first paragraph)
+            text = '\t' + text;
+            
+            // Send the data to the server
+            fetch('/save', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                    username: username,
+                    password: password,
+                    title: title,
+                    text: text,
+                    isConclusion: isConclusion
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById('message').textContent = data.error;
+                } else {
+                    document.getElementById('message').textContent = data.message;
+                    // Clear all fields only on success
+                    document.getElementById('username').value = '';
+                    document.getElementById('password').value = '';
+                    document.getElementById('chapterTitle').value = '';
+                    document.getElementById('chapterText').value = '';
+                    document.getElementById('isConclusion').checked = false;
+                    // Reload turn info
+                    loadTurnInfo();
+                }
+            })
+            .catch(error => {
+                document.getElementById('message').textContent = 'Error saving file!';
+            });
+        });
+    </script>
+
+</body>
+</html>

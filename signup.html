@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Sign Up - Creative Writing</title>
+    
+    <link rel="stylesheet" href="style.css">
+    <script src="nav.js"></script>
+</head>
+
+<body>
+
+    <div id="navigation"></div>
+    <script>insertNavigation('signup');</script>
+
+    <h2>Create Account</h2>
+    
+    <div id="signupStatusMessage"></div>
+    
+    <div id="signupFormContainer">
+        <p><strong>Important:</strong> Use a unique password - do not reuse passwords from other sites.</p>
+        <p>Usernames must be lowercase with no spaces. Both username and password are case-sensitive.</p>
+        
+        <form id="signupForm">
+            <label>Username:</label><br>
+            <input type="text" id="username" name="username" placeholder="lowercase, no spaces" required><br><br>
+            
+            <label>Password:</label><br>
+            <input type="password" id="password" name="password" required><br><br>
+            
+            <label>Confirm Password:</label><br>
+            <input type="password" id="confirmPassword" name="confirmPassword" required><br><br>
+            
+            <input type="submit" value="Create Account">
+        </form>
+
+        <div id="message"></div>
+    </div>
+
+    <script>
+        // Check if signups are enabled when page loads
+        window.onload = function() {
+            checkSignupStatus();
+        };
+
+        function checkSignupStatus() {
+            fetch('/admin/signup-status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.signupEnabled === false) {
+                        document.getElementById('signupStatusMessage').innerHTML = '<p>User signups are currently disabled. Please contact the site administrator if you need an account.</p>';
+                        document.getElementById('signupFormContainer').style.display = 'none';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking signup status:', error);
+                });
+        }
+
+        document.getElementById('signupForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            var username = document.getElementById('username').value.trim();
+            var password = document.getElementById('password').value;
+            var confirmPassword = document.getElementById('confirmPassword').value;
+            
+            // Validate username format
+            if (username !== username.toLowerCase() || username.includes(' ')) {
+                document.getElementById('message').innerHTML = '<p>Username must be lowercase with no spaces.</p>';
+                return;
+            }
+            
+            // Check if passwords match
+            if (password !== confirmPassword) {
+                document.getElementById('message').innerHTML = '<p">Passwords do not match.</p>';
+                return;
+            }
+            
+            // Check password length
+            if (password.length < 4) {
+                document.getElementById('message').innerHTML = '<p">Password must be at least 4 characters long.</p>';
+                return;
+            }
+            
+            // Send the data to the server
+            fetch('/signup', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                    username: username,
+                    password: password
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById('message').innerHTML = '<p>' + data.error + '</p>';
+                } else {
+                    document.getElementById('message').innerHTML = '<p>' + data.message + '</p>';
+                    // Clear all fields on success
+                    document.getElementById('username').value = '';
+                    document.getElementById('password').value = '';
+                    document.getElementById('confirmPassword').value = '';
+                }
+            })
+            .catch(error => {
+                document.getElementById('message').innerHTML = '<p>Error creating account!</p>';
+            });
+        });
+    </script>
+
+</body>
+</html>

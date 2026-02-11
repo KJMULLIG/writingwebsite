@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="style.css">
+    <script src="nav.js"></script>
+</head>
+<body>
+
+    <div id="navigation"></div>
+    <script>insertNavigation('index');</script>
+
+    <h2>Table of Contents</h2>
+    <div id="tableOfContents"></div>
+
+    <hr>
+
+    <div id="chapterContent"></div>
+
+    <div id="chapterNavigation"></div>
+
+    <script>
+        let allChapters = [];
+        let currentChapter = null;
+
+        // Load the table of contents when page loads
+        window.onload = function() {
+            loadTableOfContents();
+        };
+
+        function loadTableOfContents() {
+            fetch('/chapters')
+                .then(response => response.json())
+                .then(data => {
+                    allChapters = data.chapters;
+                    const toc = document.getElementById('tableOfContents');
+                    toc.innerHTML = '';
+
+                    allChapters.forEach(chapter => {
+                        const link = document.createElement('a');
+                        link.href = '#';
+                        link.textContent = 'Chapter ' + chapter.number + ': ' + chapter.title + ' (' + chapter.author + ')';
+                        link.onclick = function(e) {
+                            e.preventDefault();
+                            loadChapter(chapter.number);
+                        };
+
+                        toc.appendChild(link);
+                        toc.appendChild(document.createElement('br'));
+                    });
+                })
+                .catch(error => {
+                    console.error('Error loading chapters:', error);
+                });
+        }
+
+        function loadChapter(chapterNum) {
+            currentChapter = chapterNum;
+            
+            // Scroll to the top of the page
+            window.scrollTo(0, 0);
+            
+            fetch('/chapter/' + chapterNum)
+                .then(response => response.text())
+                .then(text => {
+                    const content = document.getElementById('chapterContent');
+                    
+                    // Find the chapter info from allChapters array
+                    const chapterInfo = allChapters.find(ch => ch.number === chapterNum);
+                    const heading = 'Chapter ' + chapterNum + ': ' + chapterInfo.title + ' (' + chapterInfo.author + ')';
+                    
+                    // Remove the first 3 lines (Author, Title, and blank line)
+                    const lines = text.split('\n');
+                    const cleanedText = lines.slice(3).join('\n');
+                    
+                    // Replace single newlines with double br tags for paragraph spacing
+                    const formattedText = cleanedText.replace(/\n/g, '<br><br>');
+                    
+                    content.innerHTML = '<h3>' + heading + '</h3><pre>' + formattedText + '</pre>';
+                    
+                    updateNavigation();
+                })
+                .catch(error => {
+                    console.error('Error loading chapter:', error);
+                    document.getElementById('chapterContent').textContent = 'Error loading chapter!';
+                });
+        }
+
+        function updateNavigation() {
+            const nav = document.getElementById('chapterNavigation');
+            nav.innerHTML = '';
+
+            const currentIndex = allChapters.findIndex(ch => ch.number === currentChapter);
+            
+            // Previous button
+            if (currentIndex > 0) {
+                const prevButton = document.createElement('button');
+                prevButton.textContent = '< Previous';
+                prevButton.onclick = function() {
+                    loadChapter(allChapters[currentIndex - 1].number);
+                };
+                nav.appendChild(prevButton);
+                nav.appendChild(document.createTextNode(' '));
+            }
+
+            // Next button
+            if (currentIndex < allChapters.length - 1) {
+                const nextButton = document.createElement('button');
+                nextButton.textContent = 'Next >';
+                nextButton.onclick = function() {
+                    loadChapter(allChapters[currentIndex + 1].number);
+                };
+                nav.appendChild(nextButton);
+            }
+        }
+    </script>
+
+</body>
+</html>

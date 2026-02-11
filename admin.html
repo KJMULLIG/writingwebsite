@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Panel</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="nav.js"></script>
+</head>
+<body>
+
+    <h1>Admin Panel</h1>
+    
+    <div id="navigation"></div>
+    <script>insertNavigation('admin');</script>
+
+    <h2>Turn Order Management</h2>
+    
+    <div id="currentTurnOrder"></div>
+    
+    <button onclick="generateTurnOrder()">Randomize Turn Order</button>
+    <br><br>
+    
+    <div id="turnOrderMessage"></div>
+    
+    <h3>Manual Turn Order Editing</h3>
+    <label>Turn Order (comma-separated usernames):</label><br>
+    <input type="text" id="manualTurnOrder" size="50" placeholder="e.g., alice,bob,charlie"><br><br>
+    
+    <label>Current Turn Index:</label><br>
+    <input type="number" id="manualTurnIndex" min="0" placeholder="0"><br><br>
+    
+    <button onclick="updateTurnOrder()">Update Turn Order</button>
+    <br><br>
+    
+    <div id="manualTurnMessage"></div>
+    
+    <hr>
+    
+    <h2>User Management</h2>
+    
+    <h3>Signup Control</h3>
+    <div id="signupStatus"></div>
+    <button onclick="enableSignup()">Enable User Signups</button>
+    <button onclick="disableSignup()">Disable User Signups</button>
+    <br><br>
+    
+    <div id="signupMessage"></div>
+    
+    <h3>Add New User</h3>
+    <label>Username:</label><br>
+    <input type="text" id="newUsername" placeholder="lowercase, no spaces"><br><br>
+    
+    <label>Password:</label><br>
+    <input type="password" id="newPassword"><br><br>
+    
+    <button onclick="addUser()">Add User</button>
+    <br><br>
+    
+    <div id="addUserMessage"></div>
+    
+    <h3>Current Users</h3>
+    <button onclick="loadUsers()">Refresh User List</button>
+    <div id="userList"></div>
+    
+    <hr>
+    
+    <h2>Story Management</h2>
+    
+    <button onclick="reopenStory()">Reopen Story for Submissions</button>
+    <button onclick="closeStory()">Close Story Submissions</button>
+    <br><br>
+    
+    <div id="storyMessage"></div>
+    
+    <hr>
+    
+    <h2>Download Chapters</h2>
+    
+    <button onclick="downloadAllChapters()">Download All Chapters as Single File</button>
+    <br><br>
+    
+    <div id="downloadMessage"></div>
+    
+    <hr>
+    
+    <h2>Chapter Management</h2>
+    
+    <h3>Upload Chapter</h3>
+    <p>Upload a text file as a new chapter:</p>
+    <input type="file" id="chapterFile" accept=".txt">
+    <button onclick="uploadChapter()">Upload Chapter</button>
+    <br><br>
+    
+    <div id="uploadChapterMessage"></div>
+    
+    <button onclick="deleteAllChapters()">Delete All Chapters</button>
+    <br><br>
+    
+    <h3>Individual Chapters</h3>
+    <button onclick="loadChaptersForDeletion()">Refresh Chapter List</button>
+    <div id="chapterList"></div>
+    
+    <hr>
+    
+    <h2>Archive Management</h2>
+    
+    <p>Upload a text file to the archive folder:</p>
+    <input type="file" id="archiveFile" accept=".txt">
+    <button onclick="uploadToArchive()">Upload to Archive</button>
+    <br><br>
+    
+    <div id="archiveMessage"></div>
+    
+    <h3>Archive Files</h3>
+    <button onclick="loadArchiveFiles()">Refresh File List</button>
+    <div id="archiveFileList"></div>
+
+    <script>
+        // Load current turn order on page load
+        window.onload = function() {
+            loadTurnOrder();
+            loadArchiveFiles();
+            loadUsers();
+            loadChaptersForDeletion();
+            loadSignupStatus();
+        };
+
+        function loadTurnOrder() {
+            fetch('/admin/turn-order')
+                .then(response => response.json())
+                .then(data => {
+                    const turnOrderDiv = document.getElementById('currentTurnOrder');
+                    
+                    let html = '<p><strong>Current Turn Order:</strong> ';
+                    if (data.turnOrder.length > 0) {
+                        html += data.turnOrder.join(' → ');
+                        html += '</p>';
+                        html += '<p><strong>Current Turn:</strong> ' + data.turnOrder[data.currentTurnIndex] + ' (Index: ' + data.currentTurnIndex + ')</p>';
+                        
+                        // Populate manual editing fields
+                        document.getElementById('manualTurnOrder').value = data.turnOrder.join(',');
+                        document.getElementById('manualTurnIndex').value = data.currentTurnIndex;
+                    } else {
+                        html += 'No turn order set</p>';
+                        document.getElementById('manualTurnOrder').value = '';
+                        document.getElementById('manualTurnIndex').value = '0';
+                    }
+                    
+                    html += '<p><strong>Story Status:</strong> ' + (data.storyComplete ? 'Complete (No new submissions allowed)' : 'Open for submissions') + '</p>';
+                    
+                    turnOrderDiv.innerHTML = html;
+                })
+                .catch(error => {
+                    console.error('Error loading turn order:', error);
+                    document.getElementById('currentTurnOrder').innerHTML = '<p>Error loading turn order information</p>';
+                });
+        }
+
+        function generateTurnOrder() {
+            fetch('/admin/generate-turns', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('turnOrderMessage').innerHTML = '<p style="color: green;">' + data.message + '</p><p>New order: ' + data.turnOrder.join(' → ') + '</p>';
+                // Reload the turn order display
+                loadTurnOrder();
+            })
+            .catch(error => {
+                console.error('Error generating turn order:', error);
+                document.getElementById('turnOrderMessage').innerHTML = '<p style="color: red;">Error generating turn order!</p>';
+            });
+        }
+
+        function updateTurnOrder() {
+            const turnOrderInput = document.getElementById('manualTurnOrder').value.trim();
+            const turnIndexInput = document.getElementById('manualTurnIndex').value;
+            
+            if (!turnOrderInput) {
+                document.getElementById('manualTurnMessage').innerHTML = '<p style="color: orange;">Please enter a turn order!</p>';
+                return;
+            }
+            
+            // Parse turn order
+            const turnOrder = turnOrderInput.split(',').map(name => name.trim()).filter(name => name.length > 0);
+            
+            if (turnOrder.length === 0) {
+                document.getElementById('manualTurnMessage').innerHTML = '<p style="color: orange;">Please enter at least one username!</p>';
+                return;
+            }
+            
+            const turnIndex = parseInt(turnIndexInput) || 0;
+            
+            // Validate turn index
+            if (turnIndex < 0 || turnIndex >= turnOrder.length) {
+                document.getElementById('manualTurnMessage').innerHTML = '<p style="color: orange;">Turn index must be between 0 and ' + (turnOrder.length - 1) + '!</p>';
+                return;
+            }
+            
+            fetch('/admin/update-turn-order', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                    turnOrder: turnOrder,
+                    currentTurnIndex: turnIndex
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById('manualTurnMessage').innerHTML = '<p style="color: red;">' + data.error + '</p>';
+                } else {
+                    document.getElementById('manualTurnMessage').innerHTML = '<p style="color: green;">' + data.message + '</p>';
+                    // Reload the turn order display
+                    loadTurnOrder();
+                }
+            })
+            .catch(error => {
+                console.error('Error updating turn order:', error);
+                document.getElementById('manualTurnMessage').innerHTML = '<p style="color: red;">Error updating turn order!</p>';
+            });
+        }
+
+        function reopenStory() {
+            fetch('/admin/reopen-story', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('storyMessage').innerHTML = '<p style="color: green;">' + data.message + '</p>';
+                // Reload to show updated status
+                loadTurnOrder();
+            })
+            .catch(error => {
+                console.error('Error reopening story:', error);
+                document.getElementById('storyMessage').innerHTML = '<p style="color: red;">Error reopening story!</p>';
+            });
+        }
+
+        function closeStory() {
+            if (!confirm('Are you sure you want to close story submissions? No one will be able to submit new chapters.')) {
+                return;
+            }
+            
+            fetch('/admin/close-story', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('storyMessage').innerHTML = '<p style="color: green;">' + data.message + '</p>';
+                // Reload to show updated status
+                loadTurnOrder();
+            })
+            .catch(error => {
+                console.error('Error closing story:', error);
+                document.getElementById('storyMessage').innerHTML = '<p style="color: red;">Error closing story!</p>';
+            });
+        }
+
+        function downloadAllChapters() {
+            document.getElementById('downloadMessage').innerHTML = '<p>Loading chapters...</p>';
+            
+            // First, get the list of all chapters
+            fetch('/chapters')
+                .then(response => response.json())
+                .then(data => {
+                    const chapters = data.chapters;
+                    
+                    if (chapters.length === 0) {
+                        document.getElementById('downloadMessage').innerHTML = '<p style="color: orange;">No chapters found!</p>';
+                        return;
+                    }
+                    
+                    // Fetch all chapter contents
+                    const chapterPromises = chapters.map(chapter => 
+                        fetch('/chapter/' + chapter.number)
+                            .then(response => response.text())
+                            .then(text => ({
+                                number: chapter.number,
+                                content: text
+                            }))
+                    );
+                    
+                    // Wait for all chapters to load
+                    Promise.all(chapterPromises)
+                        .then(allChapters => {
+                            // Sort by chapter number
+                            allChapters.sort((a, b) => a.number - b.number);
+                            
+                            // Combine all chapters into one text file
+                            let fullStory = 'COMPLETE STORY - ALL CHAPTERS\n';
+                            fullStory += '='.repeat(50) + '\n\n';
+                            
+                            allChapters.forEach(chapter => {
+                                fullStory += chapter.content + '\n\n';
+                                fullStory += '-'.repeat(50) + '\n\n';
+                            });
+                            
+                            // Create a downloadable file
+                            const blob = new Blob([fullStory], { type: 'text/plain' });
+                            const url = window.URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = 'complete_story.txt';
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            window.URL.revokeObjectURL(url);
+                            
+                            document.getElementById('downloadMessage').innerHTML = '<p style="color: green;">Downloaded ' + allChapters.length + ' chapters successfully!</p>';
+                        });
+                })
+                .catch(error => {
+                    console.error('Error downloading chapters:', error);
+                    document.getElementById('downloadMessage').innerHTML = '<p style="color: red;">Error downloading chapters!</p>';
+                });
+        }
+
+        function uploadToArchive() {
+            const fileInput = document.getElementById('archiveFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                document.getElementById('archiveMessage').innerHTML = '<p style="color: orange;">Please select a file first!</p>';
+                return;
+            }
+            
+            if (!file.name.endsWith('.txt')) {
+                document.getElementById('archiveMessage').innerHTML = '<p style="color: orange;">Please select a .txt file!</p>';
+                return;
+            }
+            
+            document.getElementById('archiveMessage').innerHTML = '<p>Uploading...</p>';
+            
+            const formData = new FormData();
+            formData.append('archiveFile', file);
+            
+            fetch('/admin/upload-archive', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById('archiveMessage').innerHTML = '<p style="color: red;">' + data.error + '</p>';
+                } else {
+                    document.getElementById('archiveMessage').innerHTML = '<p style="color: green;">' + data.message + '</p>';
+                    // Clear the file input
+                    fileInput.value = '';
+                }
+            })
+            .catch(error => {
+                console.error('Error uploading file:', error);
+                document.getElementById('archiveMessage').innerHTML = '<p style="color: red;">Error uploading file!</p>';
+            });
+        }
+
+        function loadArchiveFiles() {
+            fetch('/admin/archive-files')
+                .then(response => response.json())
+                .then(data => {
+                    const fileList = document.getElementById('archiveFileList');
+                    
+                    if (data.files.length === 0) {
+                        fileList.innerHTML = '<p>No files in archive.</p>';
+                        return;
+                    }
+                    
+                    let html = '<table border="1" cellpadding="5" style="margin-top: 10px; border-collapse: collapse;">';
+                    html += '<tr><th>Filename</th><th>Actions</th></tr>';
+                    
+                    data.files.forEach(file => {
+                        html += '<tr>';
+                        html += '<td>' + file + '</td>';
+                        html += '<td>';
+                        html += '<button onclick="downloadArchiveFile(\'' + file + '\')">Download</button> ';
+                        html += '<button onclick="deleteArchiveFile(\'' + file + '\')">Delete</button>';
+                        html += '</td>';
+                        html += '</tr>';
+                    });
+                    
+                    html += '</table>';
+                    fileList.innerHTML = html;
+                })
+                .catch(error => {
+                    console.error('Error loading archive files:', error);
+                    document.getElementById('archiveFileList').innerHTML = '<p style="color: red;">Error loading archive files!</p>';
+                });
+        }
+
+        function downloadArchiveFile(filename) {
+            window.open('/admin/archive-download/' + encodeURIComponent(filename), '_blank');
+        }
+
+        function deleteArchiveFile(filename) {
+            if (!confirm('Are you sure you want to delete "' + filename + '"?')) {
+                return;
+            }
+            
+            fetch('/admin/archive-delete/' + encodeURIComponent(filename), {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                } else {
+                    alert(data.message);
+                    loadArchiveFiles(); // Refresh the list
+                }
+            })
+            .catch(error => {
+                console.error('Error deleting file:', error);
+                alert('Error deleting file!');
+            });
+        }
+
+        function loadUsers() {
+            fetch('/admin/users')
+                .then(response => response.json())
+                .then(data => {
+                    const userList = document.getElementById('userList');
+                    
+                    if (data.users.length === 0) {
+                        userList.innerHTML = '<p>No users found.</p>';
+                        return;
+                    }
+                    
+                    let html = '<table border="1" cellpadding="5" style="margin-top: 10px; border-collapse: collapse;">';
+                    html += '<tr><th>Username</th><th>Actions</th></tr>';
+                    
+                    data.users.forEach(user => {
+                        html += '<tr>';
+                        html += '<td>' + user.username + '</td>';
+                        html += '<td>';
+                        html += '<button onclick="deleteUser(\'' + user.username + '\')">Delete</button>';
+                        html += '</td>';
+                        html += '</tr>';
+                    });
+                    
+                    html += '</table>';
+                    userList.innerHTML = html;
+                })
+                .catch(error => {
+                    console.error('Error loading users:', error);
+                    document.getElementById('userList').innerHTML = '<p style="color: red;">Error loading users!</p>';
+                });
+        }
+
+        function loadSignupStatus() {
+            fetch('/admin/signup-status')
+                .then(response => response.json())
+                .then(data => {
+                    const statusDiv = document.getElementById('signupStatus');
+                    const status = data.signupEnabled ? 'Enabled' : 'Disabled';
+                    const color = data.signupEnabled ? 'green' : 'red';
+                    statusDiv.innerHTML = '<p><strong>User Signups:</strong> <span style="color: ' + color + ';">' + status + '</span></p>';
+                })
+                .catch(error => {
+                    console.error('Error loading signup status:', error);
+                    document.getElementById('signupStatus').innerHTML = '<p style="color: red;">Error loading signup status!</p>';
+                });
+        }
+
+        function enableSignup() {
+            fetch('/admin/enable-signup', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById('signupMessage').innerHTML = '<p style="color: red;">' + data.error + '</p>';
+                } else {
+                    document.getElementById('signupMessage').innerHTML = '<p style="color: green;">' + data.message + '</p>';
+                    loadSignupStatus();
+                }
+            })
+            .catch(error => {
+                console.error('Error enabling signup:', error);
+                document.getElementById('signupMessage').innerHTML = '<p style="color: red;">Error enabling signup!</p>';
+            });
+        }
+
+        function disableSignup() {
+            fetch('/admin/disable-signup', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById('signupMessage').innerHTML = '<p style="color: red;">' + data.error + '</p>';
+                } else {
+                    document.getElementById('signupMessage').innerHTML = '<p style="color: green;">' + data.message + '</p>';
+                    loadSignupStatus();
+                }
+            })
+            .catch(error => {
+                console.error('Error disabling signup:', error);
+                document.getElementById('signupMessage').innerHTML = '<p style="color: red;">Error disabling signup!</p>';
+            });
+        }
+
+        function addUser() {
+            const username = document.getElementById('newUsername').value.trim();
+            const password = document.getElementById('newPassword').value;
+            
+            if (!username || !password) {
+                document.getElementById('addUserMessage').innerHTML = '<p style="color: orange;">Please enter both username and password!</p>';
+                return;
+            }
+            
+            // Validate username (lowercase, no spaces)
+            if (username !== username.toLowerCase() || username.includes(' ')) {
+                document.getElementById('addUserMessage').innerHTML = '<p style="color: orange;">Username must be lowercase with no spaces!</p>';
+                return;
+            }
+            
+            fetch('/admin/add-user', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ username: username, password: password })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById('addUserMessage').innerHTML = '<p style="color: red;">' + data.error + '</p>';
+                } else {
+                    document.getElementById('addUserMessage').innerHTML = '<p style="color: green;">' + data.message + '</p>';
+                    // Clear inputs
+                    document.getElementById('newUsername').value = '';
+                    document.getElementById('newPassword').value = '';
+                    // Refresh user list
+                    loadUsers();
+                }
+            })
+            .catch(error => {
+                console.error('Error adding user:', error);
+                document.getElementById('addUserMessage').innerHTML = '<p style="color: red;">Error adding user!</p>';
+            });
+        }
+
+        function deleteUser(username) {
+            if (!confirm('Are you sure you want to delete user "' + username + '"?')) {
+                return;
+            }
+            
+            fetch('/admin/delete-user/' + encodeURIComponent(username), {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                } else {
+                    alert(data.message);
+                    loadUsers(); // Refresh the list
+                }
+            })
+            .catch(error => {
+                console.error('Error deleting user:', error);
+                alert('Error deleting user!');
+            });
+        }
+
+        function loadChaptersForDeletion() {
+            fetch('/chapters')
+                .then(response => response.json())
+                .then(data => {
+                    const chapterList = document.getElementById('chapterList');
+                    
+                    if (data.chapters.length === 0) {
+                        chapterList.innerHTML = '<p>No chapters found.</p>';
+                        return;
+                    }
+                    
+                    let html = '<table border="1" cellpadding="5" style="margin-top: 10px; border-collapse: collapse;">';
+                    html += '<tr><th>Chapter</th><th>Filename</th><th>Actions</th></tr>';
+                    
+                    data.chapters.forEach(chapter => {
+                        html += '<tr>';
+                        html += '<td>' + chapter.number + '</td>';
+                        html += '<td>' + chapter.number + '.txt</td>';
+                        html += '<td>';
+                        html += '<button onclick="downloadChapter(' + chapter.number + ')">Download</button> ';
+                        html += '<button onclick="deleteChapter(' + chapter.number + ')">Delete</button>';
+                        html += '</td>';
+                        html += '</tr>';
+                    });
+                    
+                    html += '</table>';
+                    chapterList.innerHTML = html;
+                })
+                .catch(error => {
+                    console.error('Error loading chapters:', error);
+                    document.getElementById('chapterList').innerHTML = '<p style="color: red;">Error loading chapters!</p>';
+                });
+        }
+
+        function deleteChapter(chapterNumber) {
+            if (!confirm('Are you sure you want to delete Chapter ' + chapterNumber + '?')) {
+                return;
+            }
+            
+            fetch('/admin/delete-chapter/' + chapterNumber, {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                } else {
+                    alert(data.message);
+                    loadChaptersForDeletion(); // Refresh the list
+                }
+            })
+            .catch(error => {
+                console.error('Error deleting chapter:', error);
+                alert('Error deleting chapter!');
+            });
+        }
+
+        function downloadChapter(chapterNumber) {
+            fetch('/chapter/' + chapterNumber)
+                .then(response => response.text())
+                .then(text => {
+                    // Create a blob from the text
+                    const blob = new Blob([text], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    
+                    // Create a temporary link and click it to trigger download
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = chapterNumber + '.txt';
+                    document.body.appendChild(a);
+                    a.click();
+                    
+                    // Clean up
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                })
+                .catch(error => {
+                    console.error('Error downloading chapter:', error);
+                    alert('Error downloading chapter!');
+                });
+        }
+
+        function deleteAllChapters() {
+            if (!confirm('Are you sure you want to delete ALL chapters? This cannot be undone!')) {
+                return;
+            }
+            
+            if (!confirm('This will permanently delete all chapters. Are you ABSOLUTELY sure?')) {
+                return;
+            }
+            
+            fetch('/admin/delete-all-chapters', {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                } else {
+                    alert(data.message);
+                    loadChaptersForDeletion(); // Refresh the list
+                }
+            })
+            .catch(error => {
+                console.error('Error deleting all chapters:', error);
+                alert('Error deleting all chapters!');
+            });
+        }
+
+        function uploadChapter() {
+            const fileInput = document.getElementById('chapterFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                document.getElementById('uploadChapterMessage').innerHTML = '<p style="color: orange;">Please select a file to upload!</p>';
+                return;
+            }
+            
+            if (!file.name.endsWith('.txt')) {
+                document.getElementById('uploadChapterMessage').innerHTML = '<p style="color: orange;">Please select a .txt file!</p>';
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            fetch('/admin/upload-chapter', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById('uploadChapterMessage').innerHTML = '<p style="color: red;">' + data.error + '</p>';
+                } else {
+                    document.getElementById('uploadChapterMessage').innerHTML = '<p style="color: green;">' + data.message + '</p>';
+                    fileInput.value = ''; // Clear the file input
+                    loadChaptersForDeletion(); // Refresh the chapter list
+                }
+            })
+            .catch(error => {
+                console.error('Error uploading chapter:', error);
+                document.getElementById('uploadChapterMessage').innerHTML = '<p style="color: red;">Error uploading chapter!</p>';
+            });
+        }
+    </script>
+
+</body>
+</html>
